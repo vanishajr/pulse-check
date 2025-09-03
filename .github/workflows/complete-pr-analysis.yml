@@ -261,10 +261,7 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const fs = require('fs');
-            const path = require('path');
-            
-            // Read metrics
+            // Read metrics from environment
             const totalRequests = process.env.TOTAL_REQUESTS || '0';
             const requestRate = parseFloat(process.env.REQUEST_RATE || '0').toFixed(2);
             const p50Latency = parseFloat(process.env.P50_LATENCY || '0').toFixed(3);
@@ -273,11 +270,7 @@ jobs:
             const errorRate = parseFloat(process.env.ERROR_RATE || '0').toFixed(2);
             const successRate = parseFloat(process.env.SUCCESS_RATE || '100').toFixed(2);
             
-            // Snapshot URLs
-            const overviewSnapshot = process.env.OVERVIEW_SNAPSHOT_URL;
-            const detailedSnapshot = process.env.DETAILED_SNAPSHOT_URL;
-            
-            // Performance grading
+            // Determine performance grade
             let grade = '🟢 Excellent';
             let gradeColor = 'success';
             
