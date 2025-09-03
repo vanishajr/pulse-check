@@ -220,6 +220,11 @@ jobs:
           echo "🔍 Creating overview snapshot..."
           if ./scripts/snapshot_grafana.sh "$BRANCH" "$PR_NUMBER"; then
             echo "✅ Overview snapshot created successfully"
+            # Extract snapshot URL from script output if available
+            SNAPSHOT_OUTPUT=$(./scripts/snapshot_grafana.sh "$BRANCH" "$PR_NUMBER" 2>&1 | grep "http://" || echo "")
+            if [ -n "$SNAPSHOT_OUTPUT" ]; then
+              echo "OVERVIEW_SNAPSHOT_URL=$SNAPSHOT_OUTPUT" >> $GITHUB_ENV
+            fi
           else
             echo "⚠️ Overview snapshot creation failed, continuing without it"
           fi
