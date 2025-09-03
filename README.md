@@ -34,7 +34,7 @@ cd pulse-check
 
 # Start monitoring stack
 export BRANCH=$(git branch --show-current)
-docker-compose up -d
+docker compose up -d
 
 # Wait for services (about 60 seconds)
 # Access Grafana: http://localhost:3000 (admin/admin)
@@ -170,14 +170,14 @@ pulse-check/
 
 1. **Services not starting**
    ```bash
-   docker-compose ps
-   docker-compose logs <service>
+   docker compose ps
+   docker compose logs <service>
    ```
 
 2. **Grafana dashboards not loading**
    ```bash
    # Check provisioning
-   docker-compose logs grafana
+   docker compose logs grafana
    curl -u admin:admin http://localhost:3000/api/search
    ```
 
