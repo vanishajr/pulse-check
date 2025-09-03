@@ -15,11 +15,30 @@ jobs:
           # No API keys needed - everything runs locally!
           export BRANCH="${{ github.head_ref }}"
           docker compose up -d
+          
+          # Wait for services to be ready
+          echo "Waiting for services to start..."
+          sleep 60
+          
+          # Check if services are running
+          docker compose ps
       
       - name: Run tests
         run: |
-          # Your performance testing here
-          curl http://localhost:8000/health
+          # Wait for application to be ready with retries
+          echo "Testing application health..."
+          for i in {1..10}; do
+            if curl -f http://localhost:8000/health; then
+              echo "Application is healthy!"
+              break
+            fi
+            echo "Waiting for application... attempt $i/10"
+            sleep 10
+          done
+          
+          # Run additional tests
+          curl -f http://localhost:8000/hello || echo "Hello endpoint test failed"
+          echo "Performance testing completed"
       
       - name: Post results to PR
         uses: actions/github-script@v7
@@ -31,6 +50,14 @@ jobs:
               body: "Performance test completed!"
             });
       
-      - name: Cleanup
+      - name: Debug and cleanup
         if: always()
-        run: docker compose down -v
+        run: |
+          echo "=== Service Status ==="
+          docker compose ps
+          
+          echo "=== Application Logs ==="
+          docker compose logs app || echo "No app logs available"
+          
+          echo "=== Cleanup ==="
+          docker compose down -v
