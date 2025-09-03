@@ -14,7 +14,7 @@ jobs:
         run: |
           # No API keys needed - everything runs locally!
           export BRANCH="${{ github.head_ref }}"
-          docker-compose up -d
+          docker compose up -d
       
       - name: Run tests
         run: |
@@ -33,4 +33,4 @@ jobs:
       
       - name: Cleanup
         if: always()
-        run: docker-compose down -v
+        run: docker compose down -v

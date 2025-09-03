@@ -68,7 +68,7 @@ jobs:
           export BRANCH="$BRANCH"
           
           # Start all services
-          docker-compose up -d
+          docker compose up -d
           
           echo "⏳ Waiting for services to initialize..."
           sleep 45
@@ -114,7 +114,7 @@ jobs:
           done
           
           # Show service status
-          docker-compose ps
+          docker compose ps
       
       - name: 🧪 Execute performance tests
         run: |
@@ -445,12 +445,12 @@ ${reportContent || \`**Performance Summary:**
           echo "🧹 Cleaning up monitoring environment..."
           
           # Export final logs
-          docker-compose logs app > pr-artifacts/app-final.log 2>&1 || true
-          docker-compose logs grafana > pr-artifacts/grafana-final.log 2>&1 || true
-          docker-compose logs prometheus > pr-artifacts/prometheus-final.log 2>&1 || true
+          docker compose logs app > pr-artifacts/app-final.log 2>&1 || true
+          docker compose logs grafana > pr-artifacts/grafana-final.log 2>&1 || true
+          docker compose logs prometheus > pr-artifacts/prometheus-final.log 2>&1 || true
           
           # Shutdown and cleanup
-          docker-compose down -v
+          docker compose down -v
           docker system prune -f
           
           echo "✅ Cleanup completed"
