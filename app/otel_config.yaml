@@ -1,0 +1,11 @@
+# app/otel_config.yaml
+service:
+  pipelines:
+    traces:
+      exporters: [otlp]
+    metrics:
+      exporters: [prometheus]
+exporters:
+  otlp:
+    endpoint: "tempo:4317"
+    insecure: true

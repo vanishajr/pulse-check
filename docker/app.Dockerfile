@@ -9,6 +9,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy source code
 COPY ./app .
 
-EXPOSE 8080
+# Create log directory
+RUN mkdir -p /var/log/app
 
-CMD ["python", "src/main.py"]
+# Expose ports (8000 for app, 8001 for metrics)
+EXPOSE 8000 8001
+
+# Run the application from the app directory
+WORKDIR /app
+CMD ["python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
