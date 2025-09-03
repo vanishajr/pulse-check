@@ -29,7 +29,7 @@ jobs:
           # Check if services are running
           docker compose ps
       
-      - name: Run tests
+      - name: Run tests and generate load
         run: |
           # Wait for application to be ready with retries
           echo "Testing application health..."
@@ -42,9 +42,70 @@ jobs:
             sleep 10
           done
           
-          # Run additional tests
-          curl -f http://localhost:8000/hello || echo "Hello endpoint test failed"
-          echo "Performance testing completed"
+          # Test Prometheus endpoint
+          echo "Testing Prometheus..."
+          curl -f http://localhost:9090/-/ready || echo "Prometheus not ready"
+          
+          # Test Grafana endpoint
+          echo "Testing Grafana..."
+          curl -f http://localhost:3000/api/health || echo "Grafana not ready"
+          
+          # Generate significant load for dashboard viewing
+          echo "🚀 Generating test load for dashboard viewing..."
+          echo "📊 You can now check the Grafana dashboard at http://localhost:3000 (admin/admin)"
+          echo "📈 Prometheus metrics at http://localhost:9090"
+          echo "🎯 Application endpoints: http://localhost:8000/health and http://localhost:8000/hello"
+          
+          # Generate background load
+          for round in {1..5}; do
+            echo "Load generation round $round/5..."
+            # Generate concurrent requests
+            for i in {1..20}; do
+              curl -s http://localhost:8000/health > /dev/null &
+              curl -s http://localhost:8000/hello > /dev/null &
+            done
+            # Wait for requests to complete
+            sleep 2
+            
+            # Some requests with delays to vary response times
+            for i in {1..10}; do
+              curl -s "http://localhost:8000/hello?delay=0.1" > /dev/null &
+            done
+            sleep 3
+          done
+          
+          echo "✅ Load generation completed - metrics should now be visible in dashboards"
+          echo "📊 Total requests generated: ~150 requests across /health and /hello endpoints"
+      
+      - name: ⏸️ Dashboard viewing pause
+        run: |
+          echo "🎯 DASHBOARD VIEWING TIME!"
+          echo "==============================================="
+          echo "📊 Grafana Dashboard: http://localhost:3000"
+          echo "   Username: admin"
+          echo "   Password: admin"
+          echo ""
+          echo "📈 Prometheus: http://localhost:9090"
+          echo "🚀 Application: http://localhost:8000"
+          echo ""
+          echo "🔍 Dashboards to check:"
+          echo "   - PR Performance Overview"
+          echo "   - Latency & Error Analysis"
+          echo ""
+          echo "⏰ You have 5 minutes to check the dashboards..."
+          echo "   (The workflow will continue automatically)"
+          echo "==============================================="
+          
+          # Extended pause for manual dashboard checking
+          for i in {1..300}; do  # 5 minutes total
+            if [ $((i % 30)) -eq 0 ]; then  # Update every 30 seconds
+              remaining=$((300 - i))
+              echo "⏰ Time remaining: ${remaining} seconds... (Check dashboards now!)"
+            fi
+            sleep 1
+          done
+          
+          echo "⏰ Dashboard viewing time expired - continuing with workflow..."
       
       - name: Post results to PR
         uses: actions/github-script@v7
@@ -53,11 +114,42 @@ jobs:
           script: |
             // Only needs GitHub token (automatically provided)
             try {
+              const comment = `## 🚀 PR Performance Analysis Complete!
+
+### 📊 **Dashboard Access** (Available for ~5 minutes during workflow)
+- **Grafana**: http://localhost:3000 (admin/admin)
+  - Navigate to "PR Performance Overview" dashboard
+  - Check "Latency & Error Analysis" for detailed metrics
+- **Prometheus**: http://localhost:9090
+  - View raw metrics and targets status
+- **Application**: http://localhost:8000
+  - Health: http://localhost:8000/health
+  - Hello: http://localhost:8000/hello
+
+### 📈 **Generated Test Data**
+- ~150 HTTP requests across multiple endpoints
+- Variable response times for latency analysis
+- Branch-specific metrics labeled with: \`${context.payload.pull_request.head.ref}\`
+
+### 🔍 **What to Look For**
+- Request rate graphs showing activity spikes
+- P95 latency measurements
+- HTTP status code distribution
+- Application logs with branch information
+
+### ⏰ **Timing**
+- Dashboard viewing window: **5 minutes** during workflow execution
+- Look for the "Dashboard viewing pause" step in the workflow logs
+- Data persists until Docker cleanup at workflow end
+
+---
+*Check the workflow logs for real-time dashboard access timing!*`;
+              
               await github.rest.issues.createComment({
                 issue_number: context.issue.number,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                body: "Performance test completed! ✅\n\nThe PR monitoring system has analyzed your changes and all tests passed successfully."
+                body: comment
               });
               console.log('PR comment posted successfully');
             } catch (error) {

@@ -4,7 +4,8 @@ import time
 import logging
 from logging.handlers import RotatingFileHandler
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Query
+from typing import Optional
 from prometheus_client import Counter, Histogram, start_http_server
 from opentelemetry import trace
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
@@ -75,9 +76,11 @@ async def metrics_middleware(request: Request, call_next):
     return response
 
 @app.get("/hello")
-def hello():
+def hello(delay: Optional[float] = Query(None, description="Artificial delay in seconds")):
     with tracer.start_as_current_span("hello-handler"):
-        return {"msg": f"Hello from branch {BRANCH}"}
+        if delay and delay > 0:
+            time.sleep(min(delay, 2.0))  # Cap delay at 2 seconds for safety
+        return {"msg": f"Hello from branch {BRANCH}", "delay_applied": delay or 0}
 
 @app.get("/health")
 def health():
