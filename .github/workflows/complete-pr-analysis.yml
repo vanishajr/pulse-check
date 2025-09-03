@@ -102,19 +102,47 @@ jobs:
               echo "✅ Grafana is accessible"
               
               # Wait for dashboard provisioning
-              sleep 10
+              sleep 15
+              
+              # Debug: Check Grafana logs
+              echo "🔍 Grafana container logs:"
+              docker compose logs grafana --tail 20
               
               # Verify dashboards are loaded
-              DASHBOARD_COUNT=$(curl -s -u admin:admin http://localhost:3000/api/search | jq length)
+              echo "🔍 Checking dashboard provisioning..."
+              DASHBOARD_COUNT=$(curl -s -u admin:admin http://localhost:3000/api/search | jq length 2>/dev/null || echo "0")
               echo "📊 Loaded $DASHBOARD_COUNT dashboards"
+              
+              # List available dashboards
+              echo "📊 Available dashboards:"
+              curl -s -u admin:admin http://localhost:3000/api/search | jq '.[].title' 2>/dev/null || echo "No dashboards found"
+              
+              # Check datasources
+              echo "🔍 Checking datasources..."
+              curl -s -u admin:admin http://localhost:3000/api/datasources | jq '.[].name' 2>/dev/null || echo "No datasources found"
+              
               break
             fi
             echo "⏳ Waiting for Grafana... ($i/15)"
             sleep 4
           done
           
-          # Show service status
+          # Debug: Check all services
+          echo "🔍 Service status:"
           docker compose ps
+          
+          echo "🔍 Checking service logs:"
+          echo "--- Prometheus logs ---"
+          docker compose logs prometheus --tail 10
+          echo "--- Loki logs ---"
+          docker compose logs loki --tail 10
+          echo "--- App logs ---"
+          docker compose logs app --tail 10
+          
+          # Run comprehensive debugging
+          echo "🔧 Running comprehensive debugging..."
+          chmod +x scripts/debug_grafana.sh
+          ./scripts/debug_grafana.sh
       
       - name: 🧪 Execute performance tests
         run: |
@@ -149,6 +177,17 @@ jobs:
           sleep 20
           
           echo "✅ Performance testing completed"
+          
+          # Debug: Verify metrics are being collected
+          echo "🔍 Verifying metrics collection..."
+          echo "--- Checking app metrics endpoint ---"
+          curl -s http://localhost:8001/metrics | head -20
+          
+          echo "--- Checking Prometheus targets ---"
+          curl -s http://localhost:9090/api/v1/targets | jq '.data.activeTargets[] | {job: .labels.job, health: .health, lastError: .lastError}' 2>/dev/null || echo "Failed to check targets"
+          
+          echo "--- Checking if metrics are scraped ---"
+          curl -s "http://localhost:9090/api/v1/query?query=up" | jq '.data.result[] | {instance: .metric.instance, value: .value[1]}' 2>/dev/null || echo "No metrics found"
       
       - name: 📊 Generate comprehensive report
         run: |
@@ -227,18 +266,35 @@ jobs:
         run: |
           echo "🔍 Collecting detailed performance metrics..."
           
-          # Core metrics
-          TOTAL_REQUESTS=$(curl -s "http://localhost:9090/api/v1/query?query=sum(app_requests_total{branch=\"$BRANCH\"})" | jq -r '.data.result[0].value[1] // "0"')
-          REQUEST_RATE=$(curl -s "http://localhost:9090/api/v1/query?query=sum(rate(app_requests_total{branch=\"$BRANCH\"}[2m]))" | jq -r '.data.result[0].value[1] // "0"')
+          # Debug: Check Prometheus connectivity first
+          if ! curl -f -s http://localhost:9090/-/ready >/dev/null; then
+            echo "❌ Prometheus is not ready! Checking logs..."
+            docker compose logs prometheus --tail 20
+            exit 1
+          fi
           
-          # Latency percentiles
-          P50_LATENCY=$(curl -s "http://localhost:9090/api/v1/query?query=histogram_quantile(0.50,sum(rate(app_request_duration_seconds_bucket{branch=\"$BRANCH\"}[5m]))by(le))" | jq -r '.data.result[0].value[1] // "0"')
-          P95_LATENCY=$(curl -s "http://localhost:9090/api/v1/query?query=histogram_quantile(0.95,sum(rate(app_request_duration_seconds_bucket{branch=\"$BRANCH\"}[5m]))by(le))" | jq -r '.data.result[0].value[1] // "0"')
-          P99_LATENCY=$(curl -s "http://localhost:9090/api/v1/query?query=histogram_quantile(0.99,sum(rate(app_request_duration_seconds_bucket{branch=\"$BRANCH\"}[5m]))by(le))" | jq -r '.data.result[0].value[1] // "0"')
+          echo "✅ Prometheus is ready, collecting metrics..."
           
-          # Error analysis
-          ERROR_RATE=$(curl -s "http://localhost:9090/api/v1/query?query=sum(rate(app_requests_total{branch=\"$BRANCH\",status=~\"4..|5..\"}[5m]))/sum(rate(app_requests_total{branch=\"$BRANCH\"}[5m]))*100" | jq -r '.data.result[0].value[1] // "0"')
-          SUCCESS_RATE=$(curl -s "http://localhost:9090/api/v1/query?query=sum(rate(app_requests_total{branch=\"$BRANCH\",status=~\"2..\"}[5m]))/sum(rate(app_requests_total{branch=\"$BRANCH\"}[5m]))*100" | jq -r '.data.result[0].value[1] // "100"')
+          # Core metrics with error handling
+          TOTAL_REQUESTS=$(curl -s "http://localhost:9090/api/v1/query?query=sum(app_requests_total{branch=\"$BRANCH\"})" | jq -r '.data.result[0].value[1] // "0"' 2>/dev/null || echo "0")
+          REQUEST_RATE=$(curl -s "http://localhost:9090/api/v1/query?query=sum(rate(app_requests_total{branch=\"$BRANCH\"}[2m]))" | jq -r '.data.result[0].value[1] // "0"' 2>/dev/null || echo "0")
+          
+          # Latency percentiles with fallbacks
+          P50_LATENCY=$(curl -s "http://localhost:9090/api/v1/query?query=histogram_quantile(0.50,sum(rate(app_request_duration_seconds_bucket{branch=\"$BRANCH\"}[5m]))by(le))" | jq -r '.data.result[0].value[1] // "0"' 2>/dev/null || echo "0")
+          P95_LATENCY=$(curl -s "http://localhost:9090/api/v1/query?query=histogram_quantile(0.95,sum(rate(app_request_duration_seconds_bucket{branch=\"$BRANCH\"}[5m]))by(le))" | jq -r '.data.result[0].value[1] // "0"' 2>/dev/null || echo "0")
+          P99_LATENCY=$(curl -s "http://localhost:9090/api/v1/query?query=histogram_quantile(0.99,sum(rate(app_request_duration_seconds_bucket{branch=\"$BRANCH\"}[5m]))by(le))" | jq -r '.data.result[0].value[1] // "0"' 2>/dev/null || echo "0")
+          
+          # Error analysis with fallbacks
+          ERROR_RATE=$(curl -s "http://localhost:9090/api/v1/query?query=sum(rate(app_requests_total{branch=\"$BRANCH\",status=~\"4..|5..\"}[5m]))/sum(rate(app_requests_total{branch=\"$BRANCH\"}[5m]))*100" | jq -r '.data.result[0].value[1] // "0"' 2>/dev/null || echo "0")
+          SUCCESS_RATE=$(curl -s "http://localhost:9090/api/v1/query?query=sum(rate(app_requests_total{branch=\"$BRANCH\",status=~\"2..\"}[5m]))/sum(rate(app_requests_total{branch=\"$BRANCH\"}[5m]))*100" | jq -r '.data.result[0].value[1] // "100"' 2>/dev/null || echo "100")
+          
+          # Debug: Show raw query results
+          echo "🔍 Debug - Raw metrics queries:"
+          echo "Total requests query result:"
+          curl -s "http://localhost:9090/api/v1/query?query=sum(app_requests_total{branch=\"$BRANCH\"})" | jq '.' 2>/dev/null || echo "Query failed"
+          
+          echo "Request rate query result:"
+          curl -s "http://localhost:9090/api/v1/query?query=sum(rate(app_requests_total{branch=\"$BRANCH\"}[2m]))" | jq '.' 2>/dev/null || echo "Query failed"
           
           # Export for GitHub Actions
           echo "TOTAL_REQUESTS=$TOTAL_REQUESTS" >> $GITHUB_ENV
@@ -251,11 +307,11 @@ jobs:
           
           echo "📊 Metrics summary:"
           echo "  - Total Requests: $TOTAL_REQUESTS"
-          echo "  - Request Rate: $(printf "%.2f" $REQUEST_RATE) req/s"
-          echo "  - P50 Latency: $(printf "%.3f" $P50_LATENCY)s"
-          echo "  - P95 Latency: $(printf "%.3f" $P95_LATENCY)s"
-          echo "  - P99 Latency: $(printf "%.3f" $P99_LATENCY)s"
-          echo "  - Error Rate: $(printf "%.2f" $ERROR_RATE)%"
+          echo "  - Request Rate: $(printf "%.2f" $REQUEST_RATE 2>/dev/null || echo $REQUEST_RATE) req/s"
+          echo "  - P50 Latency: $(printf "%.3f" $P50_LATENCY 2>/dev/null || echo $P50_LATENCY)s"
+          echo "  - P95 Latency: $(printf "%.3f" $P95_LATENCY 2>/dev/null || echo $P95_LATENCY)s"
+          echo "  - P99 Latency: $(printf "%.3f" $P99_LATENCY 2>/dev/null || echo $P99_LATENCY)s"
+          echo "  - Error Rate: $(printf "%.2f" $ERROR_RATE 2>/dev/null || echo $ERROR_RATE)%"
       
       - name: 💬 Post comprehensive PR analysis
         uses: actions/github-script@v7
