@@ -1,0 +1,151 @@
+{
+  "id": null,
+  "title": "Latency & Error Analysis",
+  "tags": ["pr-monitoring", "latency", "errors"],
+  "style": "dark",
+  "timezone": "browser",
+  "refresh": "5s",
+  "time": {
+    "from": "now-15m", 
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "branch",
+        "type": "query",
+        "query": "label_values(app_requests_total, branch)",
+        "datasource": "Prometheus",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": ".*"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Latency Heatmap",
+      "type": "heatmap",
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 0},
+      "targets": [
+        {
+          "expr": "sum(rate(app_request_duration_seconds_bucket{branch=~\"$branch\"}[2m])) by (le)",
+          "format": "heatmap",
+          "legendFormat": "{{le}}",
+          "refId": "A"
+        }
+      ],
+      "heatmap": {
+        "xAxis": {
+          "show": true
+        },
+        "yAxis": {
+          "show": true,
+          "label": "Response Time",
+          "logBase": 1
+        },
+        "colorMode": "spectrum"
+      }
+    },
+    {
+      "id": 2,
+      "title": "HTTP Status Code Distribution",
+      "type": "piechart",
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 0},
+      "targets": [
+        {
+          "expr": "sum(app_requests_total{branch=~\"$branch\"}) by (status)",
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Endpoint Performance Breakdown",
+      "type": "table",
+      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 9},
+      "targets": [
+        {
+          "expr": "sum(rate(app_requests_total{branch=~\"$branch\"}[5m])) by (endpoint)",
+          "legendFormat": "Request Rate",
+          "refId": "A",
+          "format": "table"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(app_request_duration_seconds_bucket{branch=~\"$branch\"}[5m])) by (le, endpoint))",
+          "legendFormat": "P95 Latency",
+          "refId": "B",
+          "format": "table"
+        },
+        {
+          "expr": "sum(rate(app_requests_total{branch=~\"$branch\",status=~\"4..|5..\"}[5m])) by (endpoint) / sum(rate(app_requests_total{branch=~\"$branch\"}[5m])) by (endpoint) * 100",
+          "legendFormat": "Error Rate",
+          "refId": "C",
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Error Rate Timeline",
+      "type": "graph",
+      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 18},
+      "targets": [
+        {
+          "expr": "sum(rate(app_requests_total{branch=~\"$branch\",status=~\"4..\"}[5m])) by (branch)",
+          "legendFormat": "4xx Errors - {{branch}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(app_requests_total{branch=~\"$branch\",status=~\"5..\"}[5m])) by (branch)",
+          "legendFormat": "5xx Errors - {{branch}}",
+          "refId": "B"
+        }
+      ],
+      "yAxes": [
+        {
+          "label": "Errors/sec",
+          "min": 0
+        }
+      ],
+      "alert": {
+        "conditions": [
+          {
+            "query": {
+              "queryType": "",
+              "refId": "A"
+            },
+            "reducer": {
+              "type": "last",
+              "params": []
+            },
+            "evaluator": {
+              "params": [0.1],
+              "type": "gt"
+            }
+          }
+        ],
+        "executionErrorState": "alerting",
+        "noDataState": "no_data",
+        "frequency": "10s",
+        "handler": 1,
+        "name": "High Error Rate Alert",
+        "message": "Error rate is above threshold for branch: $branch"
+      }
+    }
+  ]
+}
