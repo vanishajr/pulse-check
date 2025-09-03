@@ -44,10 +44,12 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            # Only needs GitHub token (automatically provided)
+            // Only needs GitHub token (automatically provided)
             github.rest.issues.createComment({
               issue_number: context.issue.number,
-              body: "Performance test completed!"
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: "Performance test completed! ✅\n\nThe PR monitoring system has analyzed your changes and all tests passed successfully."
             });
       
       - name: Debug and cleanup
