@@ -1,0 +1,42 @@
+version: "3.9"
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=development
+
+  grafana:
+    build:
+      context: .
+      dockerfile: docker/grafana.Dockerfile
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+
+  prometheus:
+    build:
+      context: .
+      dockerfile: docker/prometheus.Dockerfile
+    ports:
+      - "9090:9090"
+
+  loki:
+    build:
+      context: .
+      dockerfile: docker/loki.Dockerfile
+    ports:
+      - "3100:3100"
+
+  tempo:
+    build:
+      context: .
+      dockerfile: docker/tempo.Dockerfile
+    ports:
+      - "3200:3200"
