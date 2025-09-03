@@ -78,3 +78,23 @@ reports/
 snapshots/
 *.pdf
 *.html
+
+# Temporary test files
+test-*.ps1
+debug-*.ps1
+simple-*.ps1
+generate-*.ps1
+local-test-*.ps1
+*-test.ps1
+*-diagnostic.ps1
+
+# PR artifacts (generated dynamically)
+pr-reports/
+pr-artifacts/
+snapshot_url.txt
+performance-summary.json
+
+# Diagnostic and sample files
+*-DIAGNOSIS.md
+*-TEST-RESULTS.md
+*-sample-*.md

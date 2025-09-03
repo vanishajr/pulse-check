@@ -1,0 +1,456 @@
+name: Complete PR Performance Analysis
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to analyze'
+        required: true
+        type: number
+      analysis_type:
+        description: 'Type of analysis'
+        required: true
+        type: choice
+        default: 'standard'
+        options:
+          - 'standard'
+          - 'comprehensive'
+          - 'load-test'
+          - 'comparison'
+
+env:
+  BRANCH: ${{ github.head_ref || github.ref_name }}
+  PR_NUMBER: ${{ github.event.pull_request.number || github.event.inputs.pr_number }}
+  GRAFANA_URL: "http://localhost:3000"
+  GRAFANA_USER: "admin"
+  GRAFANA_PASSWORD: "admin"
+
+jobs:
+  # Person 1 & 4: Complete CI/CD Pipeline with Reporting
+  comprehensive-analysis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: >
+      github.event_name == 'pull_request' || 
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issue_comment' && 
+       contains(github.event.comment.body, '/analyze') &&
+       github.event.issue.pull_request)
+    
+    steps:
+      - name: 🏁 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: 🔧 Setup environment
+        run: |
+          echo "BRANCH=${{ github.head_ref || github.ref_name }}" >> $GITHUB_ENV
+          echo "PR_NUMBER=${{ github.event.pull_request.number || github.event.inputs.pr_number }}" >> $GITHUB_ENV
+          echo "COMMIT_SHA=${{ github.sha }}" >> $GITHUB_ENV
+          echo "ANALYSIS_TYPE=${{ github.event.inputs.analysis_type || 'standard' }}" >> $GITHUB_ENV
+          
+          # Create reports directory
+          mkdir -p pr-reports pr-artifacts
+          
+          echo "📋 Analysis Configuration:"
+          echo "  - Branch: $BRANCH"
+          echo "  - PR: $PR_NUMBER"
+          echo "  - Type: ${ANALYSIS_TYPE:-standard}"
+      
+      - name: 🚀 Start observability stack
+        run: |
+          echo "🏗️ Starting comprehensive monitoring stack..."
+          export BRANCH="$BRANCH"
+          
+          # Start all services
+          docker-compose up -d
+          
+          echo "⏳ Waiting for services to initialize..."
+          sleep 45
+          
+          # Comprehensive health checks
+          echo "🔍 Verifying service health..."
+          
+          # Check application
+          for i in {1..15}; do
+            if curl -f http://localhost:8000/health; then
+              echo "✅ Application is healthy"
+              break
+            fi
+            echo "⏳ Waiting for application... ($i/15)"
+            sleep 3
+          done
+          
+          # Check Prometheus
+          for i in {1..10}; do
+            if curl -f http://localhost:9090/-/ready; then
+              echo "✅ Prometheus is ready"
+              break
+            fi
+            echo "⏳ Waiting for Prometheus... ($i/10)"
+            sleep 3
+          done
+          
+          # Check Grafana with dashboard provisioning
+          for i in {1..15}; do
+            if curl -f -u admin:admin http://localhost:3000/api/health; then
+              echo "✅ Grafana is accessible"
+              
+              # Wait for dashboard provisioning
+              sleep 10
+              
+              # Verify dashboards are loaded
+              DASHBOARD_COUNT=$(curl -s -u admin:admin http://localhost:3000/api/search | jq length)
+              echo "📊 Loaded $DASHBOARD_COUNT dashboards"
+              break
+            fi
+            echo "⏳ Waiting for Grafana... ($i/15)"
+            sleep 4
+          done
+          
+          # Show service status
+          docker-compose ps
+      
+      - name: 🧪 Execute performance tests
+        run: |
+          echo "🔬 Running comprehensive performance tests..."
+          
+          # Generate varied test traffic
+          echo "📈 Phase 1: Baseline traffic generation"
+          for i in {1..30}; do
+            curl -s http://localhost:8000/hello >/dev/null &
+            curl -s http://localhost:8000/health >/dev/null &
+            sleep 0.3
+          done
+          wait
+          
+          echo "📈 Phase 2: Burst traffic simulation"
+          for i in {1..50}; do
+            curl -s http://localhost:8000/hello >/dev/null &
+            curl -s http://localhost:8000/health >/dev/null &
+            # Occasional 404 to test error handling
+            [ $((i % 10)) -eq 0 ] && curl -s http://localhost:8000/nonexistent >/dev/null &
+          done
+          wait
+          
+          echo "📈 Phase 3: Sustained load"
+          for i in {1..40}; do
+            curl -s http://localhost:8000/hello >/dev/null
+            curl -s http://localhost:8000/health >/dev/null
+            sleep 0.2
+          done
+          
+          echo "⏳ Allowing metrics collection..."
+          sleep 20
+          
+          echo "✅ Performance testing completed"
+      
+      - name: 📊 Generate comprehensive report
+        run: |
+          echo "📋 Generating detailed performance report..."
+          
+          # Make report script executable and run it
+          chmod +x scripts/generate_pr_report.sh
+          
+          # Generate multiple report formats
+          ./scripts/generate_pr_report.sh "$PR_NUMBER" "$BRANCH" "markdown"
+          ./scripts/generate_pr_report.sh "$PR_NUMBER" "$BRANCH" "html"  
+          ./scripts/generate_pr_report.sh "$PR_NUMBER" "$BRANCH" "json"
+          
+          echo "📁 Generated reports:"
+          ls -la pr-reports/
+      
+      - name: 📸 Create enhanced Grafana snapshots
+        id: snapshots
+        continue-on-error: true
+        run: |
+          echo "📸 Creating multiple dashboard snapshots..."
+          
+          chmod +x scripts/snapshot_grafana.sh
+          
+          # Initialize snapshot status
+          echo "HAS_SNAPSHOT=false" >> $GITHUB_ENV
+          echo "SNAPSHOT_ERROR=none" >> $GITHUB_ENV
+          
+          # Try to create main overview snapshot with error handling
+          echo "🔍 Creating overview snapshot..."
+          if ./scripts/snapshot_grafana.sh "$BRANCH" "$PR_NUMBER"; then
+            echo "✅ Overview snapshot created successfully"
+          else
+            echo "⚠️ Overview snapshot creation failed, continuing without it"
+          fi
+          
+          # Try detailed snapshot with fallback
+          echo "🔍 Creating detailed snapshot..."
+          DETAILED_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" \
+            -X POST "$GRAFANA_URL/api/snapshots" \
+            -u "$GRAFANA_USER:$GRAFANA_PASSWORD" \
+            -H "Content-Type: application/json" \
+            -d '{
+                  "name": "PR-'$PR_NUMBER' Detailed Analysis ('$BRANCH')",
+                  "expires": 604800,
+                  "external": false,
+                  "dashboard": {
+                    "title": "PR-'$PR_NUMBER' Comprehensive Performance Analysis",
+                    "tags": ["pr-'$PR_NUMBER'", "'$BRANCH'", "detailed"],
+                    "time": {"from": "now-20m", "to": "now"},
+                    "refresh": "10s",
+                    "panels": []
+                  }
+                }' 2>/dev/null)
+          
+          DETAILED_BODY=$(echo "$DETAILED_RESPONSE" | sed -E 's/HTTPSTATUS\:[0-9]{3}$//')
+          DETAILED_STATUS=$(echo "$DETAILED_RESPONSE" | grep -o -E "[0-9]{3}$")
+          
+          if [ "$DETAILED_STATUS" = "200" ]; then
+            DETAILED_KEY=$(echo "$DETAILED_BODY" | jq -r '.key // empty')
+            if [ -n "$DETAILED_KEY" ] && [ "$DETAILED_KEY" != "null" ]; then
+              echo "DETAILED_SNAPSHOT_URL=$GRAFANA_URL/dashboard/snapshot/$DETAILED_KEY" >> $GITHUB_ENV
+              echo "✅ Detailed snapshot created successfully"
+            else
+              echo "⚠️ Detailed snapshot creation failed: invalid response"
+            fi
+          else
+            echo "⚠️ Detailed snapshot creation failed (HTTP $DETAILED_STATUS): $DETAILED_BODY"
+          fi
+          
+          # Always continue - snapshots are nice-to-have, not critical
+          echo "📊 Snapshot creation completed (with or without snapshots)"
+          echo "💡 Note: Monitoring system works perfectly even without snapshots"
+      
+      - name: 📈 Collect comprehensive metrics
+        run: |
+          echo "🔍 Collecting detailed performance metrics..."
+          
+          # Core metrics
+          TOTAL_REQUESTS=$(curl -s "http://localhost:9090/api/v1/query?query=sum(app_requests_total{branch=\"$BRANCH\"})" | jq -r '.data.result[0].value[1] // "0"')
+          REQUEST_RATE=$(curl -s "http://localhost:9090/api/v1/query?query=sum(rate(app_requests_total{branch=\"$BRANCH\"}[2m]))" | jq -r '.data.result[0].value[1] // "0"')
+          
+          # Latency percentiles
+          P50_LATENCY=$(curl -s "http://localhost:9090/api/v1/query?query=histogram_quantile(0.50,sum(rate(app_request_duration_seconds_bucket{branch=\"$BRANCH\"}[5m]))by(le))" | jq -r '.data.result[0].value[1] // "0"')
+          P95_LATENCY=$(curl -s "http://localhost:9090/api/v1/query?query=histogram_quantile(0.95,sum(rate(app_request_duration_seconds_bucket{branch=\"$BRANCH\"}[5m]))by(le))" | jq -r '.data.result[0].value[1] // "0"')
+          P99_LATENCY=$(curl -s "http://localhost:9090/api/v1/query?query=histogram_quantile(0.99,sum(rate(app_request_duration_seconds_bucket{branch=\"$BRANCH\"}[5m]))by(le))" | jq -r '.data.result[0].value[1] // "0"')
+          
+          # Error analysis
+          ERROR_RATE=$(curl -s "http://localhost:9090/api/v1/query?query=sum(rate(app_requests_total{branch=\"$BRANCH\",status=~\"4..|5..\"}[5m]))/sum(rate(app_requests_total{branch=\"$BRANCH\"}[5m]))*100" | jq -r '.data.result[0].value[1] // "0"')
+          SUCCESS_RATE=$(curl -s "http://localhost:9090/api/v1/query?query=sum(rate(app_requests_total{branch=\"$BRANCH\",status=~\"2..\"}[5m]))/sum(rate(app_requests_total{branch=\"$BRANCH\"}[5m]))*100" | jq -r '.data.result[0].value[1] // "100"')
+          
+          # Export for GitHub Actions
+          echo "TOTAL_REQUESTS=$TOTAL_REQUESTS" >> $GITHUB_ENV
+          echo "REQUEST_RATE=$REQUEST_RATE" >> $GITHUB_ENV
+          echo "P50_LATENCY=$P50_LATENCY" >> $GITHUB_ENV
+          echo "P95_LATENCY=$P95_LATENCY" >> $GITHUB_ENV
+          echo "P99_LATENCY=$P99_LATENCY" >> $GITHUB_ENV
+          echo "ERROR_RATE=$ERROR_RATE" >> $GITHUB_ENV
+          echo "SUCCESS_RATE=$SUCCESS_RATE" >> $GITHUB_ENV
+          
+          echo "📊 Metrics summary:"
+          echo "  - Total Requests: $TOTAL_REQUESTS"
+          echo "  - Request Rate: $(printf "%.2f" $REQUEST_RATE) req/s"
+          echo "  - P50 Latency: $(printf "%.3f" $P50_LATENCY)s"
+          echo "  - P95 Latency: $(printf "%.3f" $P95_LATENCY)s"
+          echo "  - P99 Latency: $(printf "%.3f" $P99_LATENCY)s"
+          echo "  - Error Rate: $(printf "%.2f" $ERROR_RATE)%"
+      
+      - name: 💬 Post comprehensive PR analysis
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            // Read metrics
+            const totalRequests = process.env.TOTAL_REQUESTS || '0';
+            const requestRate = parseFloat(process.env.REQUEST_RATE || '0').toFixed(2);
+            const p50Latency = parseFloat(process.env.P50_LATENCY || '0').toFixed(3);
+            const p95Latency = parseFloat(process.env.P95_LATENCY || '0').toFixed(3);
+            const p99Latency = parseFloat(process.env.P99_LATENCY || '0').toFixed(3);
+            const errorRate = parseFloat(process.env.ERROR_RATE || '0').toFixed(2);
+            const successRate = parseFloat(process.env.SUCCESS_RATE || '100').toFixed(2);
+            
+            // Snapshot URLs
+            const overviewSnapshot = process.env.OVERVIEW_SNAPSHOT_URL;
+            const detailedSnapshot = process.env.DETAILED_SNAPSHOT_URL;
+            
+            // Performance grading
+            let grade = '🟢 Excellent';
+            let gradeColor = 'success';
+            
+            if (parseFloat(p95Latency) > 2.0 || parseFloat(errorRate) > 5) {
+              grade = '🔴 Poor';
+              gradeColor = 'critical';
+            } else if (parseFloat(p95Latency) > 1.0 || parseFloat(errorRate) > 1) {
+              grade = '🟡 Fair';  
+              gradeColor = 'warning';
+            } else if (parseFloat(p95Latency) > 0.5) {
+              grade = '🟢 Good';
+              gradeColor = 'success';
+            }
+            
+            // Read markdown report if available
+            let reportContent = '';
+            const reportPath = `pr-reports/pr-${process.env.PR_NUMBER}-report.md`;
+            try {
+              if (fs.existsSync(reportPath)) {
+                reportContent = fs.readFileSync(reportPath, 'utf8');
+              }
+            } catch (error) {
+              console.log('Report file not found, generating inline summary');
+            }
+            
+            const body = `## 🚀 Complete Performance Analysis for PR #${process.env.PR_NUMBER}
+            
+**Branch:** \`${process.env.BRANCH}\`  
+**Commit:** \`${process.env.COMMIT_SHA.substring(0, 8)}\`  
+**Analysis Type:** ${process.env.ANALYSIS_TYPE}  
+**Performance Grade:** ![${grade}](https://img.shields.io/badge/Performance-${grade.replace(' ', '%20')}-${gradeColor})
+
+### 📊 Executive Summary
+
+| Metric | Value | Benchmark |
+|--------|-------|-----------|
+| **Total Requests** | ${totalRequests} | Target: >50 |
+| **Request Rate** | ${requestRate} req/s | Target: >5 req/s |
+| **P50 Latency** | ${p50Latency}s | Target: <0.2s |
+| **P95 Latency** | ${p95Latency}s | Target: <1.0s |
+| **P99 Latency** | ${p99Latency}s | Target: <2.0s |
+| **Success Rate** | ${successRate}% | Target: >99% |
+| **Error Rate** | ${errorRate}% | Target: <1% |
+
+### 📈 Performance Distribution
+\`\`\`
+P50 ████████████████████████████████████████ ${p50Latency}s
+P95 ████████████████████████████████████████ ${p95Latency}s  
+P99 ████████████████████████████████████████ ${p99Latency}s
+\`\`\`
+
+### 🎯 Analysis Results
+
+${parseFloat(p95Latency) <= 0.5 && parseFloat(errorRate) < 0.1 ? 
+  '#### ✅ **Exceptional Performance**\n- All metrics exceed expectations\n- Zero reliability concerns\n- **Ready for immediate merge**' :
+parseFloat(p95Latency) <= 1.0 && parseFloat(errorRate) < 1 ?
+  '#### ✅ **Good Performance** \n- Metrics within acceptable ranges\n- Minor optimization opportunities\n- **Safe to merge with monitoring**' :
+parseFloat(p95Latency) <= 2.0 && parseFloat(errorRate) < 5 ?
+  '#### ⚠️ **Performance Concerns**\n- Some metrics need attention\n- Consider optimization\n- **Review before merge**' :
+  '#### ❌ **Performance Issues**\n- Critical performance problems detected\n- Optimization required\n- **Do not merge until fixed**'
+}
+
+### 📊 Interactive Dashboards
+
+${overviewSnapshot ? `- [📈 Performance Overview Dashboard](${overviewSnapshot}) *(24h retention)*` : ''}
+${detailedSnapshot ? `- [🔍 Detailed Analysis Dashboard](${detailedSnapshot}) *(14 day retention)*` : ''}
+${!overviewSnapshot && !detailedSnapshot ? '⚠️ Grafana snapshots unavailable - check workflow logs' : ''}
+
+### 🔬 Detailed Analysis
+
+${reportContent || \`**Performance Summary:**
+- Request processing completed successfully with ${totalRequests} total requests
+- Current throughput: ${requestRate} requests per second
+- Latency distribution shows P95 at ${p95Latency}s
+- System reliability at ${successRate}% success rate
+
+**Recommendations:**
+\${parseFloat(p95Latency) > 1.0 ? '- 🔧 Optimize response times - consider caching, database optimization' : ''}
+\${parseFloat(errorRate) > 1 ? '- 🐛 Address error patterns - review logs for failure causes' : ''}
+\${parseFloat(p99Latency) > 3.0 ? '- ⚡ Investigate tail latencies - check for resource contention' : ''}
+- 📊 Set up continuous performance monitoring post-merge
+- 🧪 Run load tests for high-traffic scenarios\`}
+
+### 🎖️ Performance Score
+
+**Overall Score:** ${Math.max(0, Math.min(100, Math.round(100 - (parseFloat(p95Latency) * 20) - (parseFloat(errorRate) * 5))))}/ 100
+
+---
+*Analysis completed at ${new Date().toISOString()} | Report ID: pr-${process.env.PR_NUMBER}-${Date.now()}*  
+*🤖 Generated by Complete PR Performance Monitor*`;
+            
+            // Post or update comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: process.env.PR_NUMBER,
+            });
+            
+            const existingComment = comments.find(comment => 
+              comment.user.login === 'github-actions[bot]' && 
+              comment.body.includes('Complete Performance Analysis')
+            );
+            
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: process.env.PR_NUMBER,
+                body: body
+              });
+            }
+      
+      - name: 📦 Archive comprehensive artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-${{ env.PR_NUMBER }}-comprehensive-analysis
+          path: |
+            pr-reports/
+            pr-artifacts/
+          retention-days: 14
+      
+      - name: 📤 Export performance data
+        run: |
+          echo "📊 Exporting performance data for integration..."
+          
+          # Create performance summary for downstream jobs
+          cat > pr-artifacts/performance-summary.json << EOF
+          {
+            "prNumber": $PR_NUMBER,
+            "branch": "$BRANCH",
+            "commit": "$COMMIT_SHA",
+            "timestamp": "$(date -Iseconds)",
+            "metrics": {
+              "totalRequests": $TOTAL_REQUESTS,
+              "requestRate": $REQUEST_RATE,
+              "p50Latency": $P50_LATENCY,
+              "p95Latency": $P95_LATENCY,
+              "p99Latency": $P99_LATENCY,
+              "errorRate": $ERROR_RATE,
+              "successRate": $SUCCESS_RATE
+            },
+            "snapshots": {
+              "overview": "$OVERVIEW_SNAPSHOT_URL",
+              "detailed": "$DETAILED_SNAPSHOT_URL"
+            },
+            "grade": {
+              "overall": "$([ $(echo "$P95_LATENCY <= 0.5 && $ERROR_RATE < 0.1" | bc -l) = 1 ] && echo "excellent" || [ $(echo "$P95_LATENCY <= 1.0 && $ERROR_RATE < 1" | bc -l) = 1 ] && echo "good" || [ $(echo "$P95_LATENCY <= 2.0 && $ERROR_RATE < 5" | bc -l) = 1 ] && echo "fair" || echo "poor")",
+              "readyForMerge": $([ $(echo "$P95_LATENCY <= 1.0 && $ERROR_RATE < 1" | bc -l) = 1 ] && echo "true" || echo "false")
+            }
+          }
+          EOF
+          
+          echo "✅ Performance data exported"
+      
+      - name: 🧹 Cleanup environment  
+        if: always()
+        run: |
+          echo "🧹 Cleaning up monitoring environment..."
+          
+          # Export final logs
+          docker-compose logs app > pr-artifacts/app-final.log 2>&1 || true
+          docker-compose logs grafana > pr-artifacts/grafana-final.log 2>&1 || true
+          docker-compose logs prometheus > pr-artifacts/prometheus-final.log 2>&1 || true
+          
+          # Shutdown and cleanup
+          docker-compose down -v
+          docker system prune -f
+          
+          echo "✅ Cleanup completed"
