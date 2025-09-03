@@ -305,70 +305,60 @@ jobs:
             
             const body = `## 🚀 Complete Performance Analysis for PR #${process.env.PR_NUMBER}
             
-**Branch:** \`${process.env.BRANCH}\`  
-**Commit:** \`${process.env.COMMIT_SHA.substring(0, 8)}\`  
-**Analysis Type:** ${process.env.ANALYSIS_TYPE}  
-**Performance Grade:** ![${grade}](https://img.shields.io/badge/Performance-${grade.replace(' ', '%20')}-${gradeColor})
+            **Branch:** \`${process.env.BRANCH}\`  
+            **Commit:** \`${process.env.COMMIT_SHA.substring(0, 8)}\`  
+            **Analysis Type:** ${process.env.ANALYSIS_TYPE}  
+            **Performance Grade:** ![${grade}](https://img.shields.io/badge/Performance-${grade.replace(' ', '%20')}-${gradeColor})
 
-### 📊 Executive Summary
+            | Metric | Value | Benchmark |
+            |--------|-------|-----------|
+            | **Total Requests** | ${totalRequests} | Target: >50 |
+            | **Request Rate** | ${requestRate} req/s | Target: >5 req/s |
+            | **P50 Latency** | ${p50Latency}s | Target: <0.2s |
+            | **P95 Latency** | ${p95Latency}s | Target: <1.0s |
+            | **P99 Latency** | ${p99Latency}s | Target: <2.0s |
+            | **Success Rate** | ${successRate}% | Target: >99% |
+            | **Error Rate** | ${errorRate}% | Target: <1% |
 
-| Metric | Value | Benchmark |
-|--------|-------|-----------|
-| **Total Requests** | ${totalRequests} | Target: >50 |
-| **Request Rate** | ${requestRate} req/s | Target: >5 req/s |
-| **P50 Latency** | ${p50Latency}s | Target: <0.2s |
-| **P95 Latency** | ${p95Latency}s | Target: <1.0s |
-| **P99 Latency** | ${p99Latency}s | Target: <2.0s |
-| **Success Rate** | ${successRate}% | Target: >99% |
-| **Error Rate** | ${errorRate}% | Target: <1% |
+              \`\`\`
+              P50 ████████████████████████████████████████ ${p50Latency}s
+              P95 ████████████████████████████████████████ ${p95Latency}s  
+              P99 ████████████████████████████████████████ ${p99Latency}s
+              \`\`\`
 
-### 📈 Performance Distribution
-\`\`\`
-P50 ████████████████████████████████████████ ${p50Latency}s
-P95 ████████████████████████████████████████ ${p95Latency}s  
-P99 ████████████████████████████████████████ ${p99Latency}s
-\`\`\`
+              ${parseFloat(p95Latency) <= 0.5 && parseFloat(errorRate) < 0.1 ? 
+                '#### ✅ **Exceptional Performance**\n- All metrics exceed expectations\n- Zero reliability concerns\n- **Ready for immediate merge**' :
+              parseFloat(p95Latency) <= 1.0 && parseFloat(errorRate) < 1 ?
+                '#### ✅ **Good Performance** \n- Metrics within acceptable ranges\n- Minor optimization opportunities\n- **Safe to merge with monitoring**' :
+              parseFloat(p95Latency) <= 2.0 && parseFloat(errorRate) < 5 ?
+                '#### ⚠️ **Performance Concerns**\n- Some metrics need attention\n- Consider optimization\n- **Review before merge**' :
+                '#### ❌ **Performance Issues**\n- Critical performance problems detected\n- Optimization required\n- **Do not merge until fixed**'
+              }
 
-### 🎯 Analysis Results
 
-${parseFloat(p95Latency) <= 0.5 && parseFloat(errorRate) < 0.1 ? 
-  '#### ✅ **Exceptional Performance**\n- All metrics exceed expectations\n- Zero reliability concerns\n- **Ready for immediate merge**' :
-parseFloat(p95Latency) <= 1.0 && parseFloat(errorRate) < 1 ?
-  '#### ✅ **Good Performance** \n- Metrics within acceptable ranges\n- Minor optimization opportunities\n- **Safe to merge with monitoring**' :
-parseFloat(p95Latency) <= 2.0 && parseFloat(errorRate) < 5 ?
-  '#### ⚠️ **Performance Concerns**\n- Some metrics need attention\n- Consider optimization\n- **Review before merge**' :
-  '#### ❌ **Performance Issues**\n- Critical performance problems detected\n- Optimization required\n- **Do not merge until fixed**'
-}
+                ${overviewSnapshot ? `- [📈 Performance Overview Dashboard](${overviewSnapshot}) *(24h retention)*` : ''}
+                ${detailedSnapshot ? `- [🔍 Detailed Analysis Dashboard](${detailedSnapshot}) *(14 day retention)*` : ''}
+                ${!overviewSnapshot && !detailedSnapshot ? '⚠️ Grafana snapshots unavailable - check workflow logs' : ''}
 
-### 📊 Interactive Dashboards
+                ${reportContent || \`**Performance Summary:**
+                - Request processing completed successfully with ${totalRequests} total requests
+                - Current throughput: ${requestRate} requests per second
+                - Latency distribution shows P95 at ${p95Latency}s
+                - System reliability at ${successRate}% success rate
 
-${overviewSnapshot ? `- [📈 Performance Overview Dashboard](${overviewSnapshot}) *(24h retention)*` : ''}
-${detailedSnapshot ? `- [🔍 Detailed Analysis Dashboard](${detailedSnapshot}) *(14 day retention)*` : ''}
-${!overviewSnapshot && !detailedSnapshot ? '⚠️ Grafana snapshots unavailable - check workflow logs' : ''}
+                **Recommendations:**
+                \${parseFloat(p95Latency) > 1.0 ? '- 🔧 Optimize response times - consider caching, database optimization' : ''}
+                \${parseFloat(errorRate) > 1 ? '- 🐛 Address error patterns - review logs for failure causes' : ''}
+                \${parseFloat(p99Latency) > 3.0 ? '- ⚡ Investigate tail latencies - check for resource contention' : ''}
+                - 📊 Set up continuous performance monitoring post-merge
+                - 🧪 Run load tests for high-traffic scenarios\`}
 
-### 🔬 Detailed Analysis
+                **Overall Score:** ${Math.max(0, Math.min(100, Math.round(100 - (parseFloat(p95Latency) * 20) - (parseFloat(errorRate) * 5))))}/ 100
 
-${reportContent || \`**Performance Summary:**
-- Request processing completed successfully with ${totalRequests} total requests
-- Current throughput: ${requestRate} requests per second
-- Latency distribution shows P95 at ${p95Latency}s
-- System reliability at ${successRate}% success rate
-
-**Recommendations:**
-\${parseFloat(p95Latency) > 1.0 ? '- 🔧 Optimize response times - consider caching, database optimization' : ''}
-\${parseFloat(errorRate) > 1 ? '- 🐛 Address error patterns - review logs for failure causes' : ''}
-\${parseFloat(p99Latency) > 3.0 ? '- ⚡ Investigate tail latencies - check for resource contention' : ''}
-- 📊 Set up continuous performance monitoring post-merge
-- 🧪 Run load tests for high-traffic scenarios\`}
-
-### 🎖️ Performance Score
-
-**Overall Score:** ${Math.max(0, Math.min(100, Math.round(100 - (parseFloat(p95Latency) * 20) - (parseFloat(errorRate) * 5))))}/ 100
-
----
-*Analysis completed at ${new Date().toISOString()} | Report ID: pr-${process.env.PR_NUMBER}-${Date.now()}*  
-*🤖 Generated by Complete PR Performance Monitor*`;
-            
+                ---
+                *Analysis completed at ${new Date().toISOString()} | Report ID: pr-${process.env.PR_NUMBER}-${Date.now()}*  
+                *🤖 Generated by Complete PR Performance Monitor*`;
+                            
             // Post or update comment
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
