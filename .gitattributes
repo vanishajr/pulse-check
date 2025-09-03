@@ -1,0 +1,14 @@
+# Default to LF everywhere
+* text=auto
+
+# Windows-specific binaries, don't touch their endings
+*.exe binary
+*.dll binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+
+# Node modules and vendor stuff – keep as-is, don't normalize
+node_modules/** -text
