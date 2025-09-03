@@ -1,0 +1,80 @@
+# Node.js / React stuff
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+package-lock.json
+yarn.lock
+dist/
+build/
+.cache/
+.next/
+out/
+*.tsbuildinfo
+
+# Dashboard UI (React/Tailwind)
+dashboard-ui/node_modules/
+dashboard-ui/.next/
+dashboard-ui/dist/
+dashboard-ui/build/
+dashboard-ui/.cache/
+
+# Python app
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.env
+venv/
+.env.local
+.env.*.local
+
+# Docker junk
+*.pid
+*.seed
+*.pid.lock
+docker-data/
+tmp/
+
+# Observability (Prometheus/Loki/Tempo volumes)
+prometheus_data/
+loki_data/
+tempo_data/
+
+# Grafana
+grafana/plugins/
+grafana/data/
+grafana/storage/
+grafana/logs/
+
+# Logs
+logs/
+*.log
+*.log.*
+npm-debug.log*
+debug.log
+
+# OS & Editor files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# GitHub Actions artifacts
+*.bak
+*.tmp
+*.swp
+*.swo
+.github/workflows/*.tmp
+.github/workflows/*.bak
+
+# Reports / Snapshots
+reports/
+snapshots/
+*.pdf
+*.html
