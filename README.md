@@ -1,8 +1,8 @@
-# 🚀 PR-based Ephemeral Monitoring with Grafana & OpenTelemetry
+# PR-based Ephemeral Monitoring with Grafana & OpenTelemetry
 
 A comprehensive CI/CD solution that automatically monitors and analyzes the performance impact of every pull request using OpenTelemetry, Prometheus, Loki, and Grafana.
 
-## 🎯 Project Overview
+## Project Overview
 
 Whenever a pull request is created, this system automatically:
 
@@ -13,39 +13,13 @@ Whenever a pull request is created, this system automatically:
 5. **Posts analysis back to the PR** with actionable insights
 6. **Tears down the environment** to save resources
 
-### 🎪 Live Demo
+### Live Demo
 
 - **Grafana**: http://localhost:3000 (admin/admin)
 - **Prometheus**: http://localhost:9090
 - **Application**: http://localhost:8000
 
-## 👥 Team Responsibilities
-
-### ✅ Person 1: CI/CD Pipeline Master
-**Status: COMPLETE** 🎉
-- GitHub Actions workflows for automated PR analysis
-- Branch detection and environment lifecycle management
-- Artifact collection and cleanup automation
-
-### ✅ Person 2: Environment & Docker Engineer  
-**Status: COMPLETE** 🎉
-- Docker Compose orchestration for observability stack
-- Service networking and resource management
-- Container health checks and dependency management
-
-### ✅ Person 3: Observability & Metrics Person
-**Status: COMPLETE** 🎉
-- OpenTelemetry integration with metrics, logs, and traces
-- Prometheus scrape configuration and Loki log collection
-- Branch-specific metric labeling for dashboard filtering
-
-### ✅ Person 4: Visualization & Reporting
-**Status: COMPLETE** 🎉
-- Grafana dashboard creation and provisioning
-- Automated snapshot generation with retention policies
-- Comprehensive PR reporting with performance analysis
-
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - Docker and Docker Compose
@@ -85,7 +59,7 @@ Just create a pull request! The system will:
 ./scripts/post_pr_comment.sh 123 feature-branch
 ```
 
-## 📊 Available Workflows
+## Available Workflows
 
 ### 1. **Standard PR Monitoring** (`pr-monitor.yml`)
 - **Trigger**: Automatic on PR creation/updates
@@ -108,7 +82,7 @@ Just create a pull request! The system will:
 - **Features**: Branch vs branch performance comparison
 - **Duration**: ~20-25 minutes
 
-## 📈 Dashboard Features
+## Dashboard Features
 
 ### **PR Overview Dashboard**
 - Real-time request rates and response times
@@ -122,13 +96,13 @@ Just create a pull request! The system will:
 - Endpoint-specific performance breakdown
 - Error pattern identification
 
-## 🎯 Performance Analysis
+## Performance Analysis
 
 ### **Automated Grading System**
-- 🟢 **Excellent**: P95 < 0.5s, Error Rate < 0.1%
-- 🟢 **Good**: P95 < 1.0s, Error Rate < 1%  
-- 🟡 **Fair**: P95 < 2.0s, Error Rate < 5%
-- 🔴 **Poor**: Above thresholds
+- **Excellent**: P95 < 0.5s, Error Rate < 0.1%
+- **Good**: P95 < 1.0s, Error Rate < 1%  
+- **Fair**: P95 < 2.0s, Error Rate < 5%
+- **Poor**: Above thresholds
 
 ### **Generated Reports**
 - **Markdown**: PR comments and GitHub integration
@@ -140,7 +114,7 @@ Just create a pull request! The system will:
 - **Detailed**: 14-day retention for comprehensive analysis
 - **Load Test**: 7-day retention with extended metrics
 
-## 🛠️ Configuration
+## Configuration
 
 ### **Environment Variables**
 ```bash
@@ -163,7 +137,7 @@ Edit performance thresholds in:
 - `scripts/generate_pr_report.sh`
 - Workflow files under `.github/workflows/`
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 pulse-check/
@@ -190,7 +164,7 @@ pulse-check/
 └── docker-compose.yml        # Full observability stack
 ```
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### **Common Issues**
 
@@ -227,7 +201,7 @@ pulse-check/
 - **CPU**: Ensure 2+ CPU cores available
 - **Storage**: Monitor disk usage during long-running tests
 
-## 🚀 Advanced Usage
+## Advanced Usage
 
 ### **Custom Load Tests**
 ```javascript
@@ -270,33 +244,33 @@ curl -X POST -H 'Content-type: application/json' \
 aws s3 cp pr-reports/ s3://your-bucket/pr-reports/ --recursive
 ```
 
-## 🏆 Success Metrics
+## Success Metrics
 
 ### **Developer Experience**
-- ⚡ **Fast Feedback**: Results in <10 minutes
-- 📊 **Rich Insights**: Visual dashboards and detailed reports
-- 🔄 **Automated**: Zero manual intervention required
-- 📈 **Actionable**: Clear recommendations for optimization
+- **Fast Feedback**: Results in <10 minutes
+- **Rich Insights**: Visual dashboards and detailed reports
+- **Automated**: Zero manual intervention required
+- **Actionable**: Clear recommendations for optimization
 
 ### **System Performance**
-- 🎯 **Early Detection**: Catch performance regressions before merge
-- 📉 **Trend Analysis**: Track performance over time
-- 🚨 **Alerting**: Automated threshold monitoring
-- 🔍 **Root Cause**: Detailed trace and log correlation
+- **Early Detection**: Catch performance regressions before merge
+- **Trend Analysis**: Track performance over time
+- **Alerting**: Automated threshold monitoring
+- **Root Cause**: Detailed trace and log correlation
 
-## 🤝 Contributing
+## Contributing
 
 1. **Fork** the repository
 2. **Create** a feature branch
 3. **Test** with the monitoring stack
 4. **Submit** a pull request (and watch the magic happen!)
 
-## 📝 License
+## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-**🎉 Happy Monitoring!** This system gives you enterprise-grade performance insights without the enterprise complexity.
+**Happy Monitoring!** This system gives you enterprise-grade performance insights without the enterprise complexity.
 
-*Built with ❤️ using OpenTelemetry, Grafana, Prometheus, and GitHub Actions*
+*Built with love using OpenTelemetry, Grafana, Prometheus, and GitHub Actions*
