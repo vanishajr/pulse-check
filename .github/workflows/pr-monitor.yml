@@ -57,7 +57,139 @@ jobs:
                 issue_number: context.issue.number,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                body: "Performance test completed! ✅\n\nThe PR monitoring system has analyzed your changes and all tests passed successfully."
+                body: |
+                  I've analyzed the Python codebase and identified opportunities to add observability instrumentation. Here are my recommendations, sorted by priority:
+
+                  **High Priority:**
+                  - Add OpenTelemetry tracing to route handlers to track API request flows
+                  - Add error handling with proper logging and span status updates
+                  - Instrument critical business operations (order creation, refunds, etc.)
+
+                  **Medium Priority:**
+                  - Add metrics for endpoint latency and error rates
+                  - Track user actions via Amplitude events
+                  - Add contextual logging for business operations
+
+                  **Low Priority:**
+                  - Add debug logging for development troubleshooting
+                  - Add span attributes for additional context
+
+                  ## Specific Recommendations
+
+                  **FILE:** `test-app/main.py`  
+                  **LINE:** 4
+
+                  **SUGGESTION:**
+                  ```diff
+                  # app.py
+                  from flask import Flask
+                  from routes import user_routes, product_routes, order_routes
+                  + import logging
+                  + from opentelemetry import trace
+                  + from opentelemetry.instrumentation.flask import FlaskInstrumentor
+                  + from opentelemetry.sdk.trace import TracerProvider
+                  + from opentelemetry.sdk.resources import SERVICE_NAME, Resource
+
+                  def create_app():
+                      app = Flask(__name__)
+                  +    # Configure logging
+                  +    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+                  +    
+                  +    # Configure OpenTelemetry
+                  +    trace.set_tracer_provider(TracerProvider(resource=Resource.create({SERVICE_NAME: "test-app"})))
+                  +    FlaskInstrumentor().instrument_app(app)
+                      
+                      app.register_blueprint(user_routes.bp)
+                      app.register_blueprint(product_routes.bp)
+                      app.register_blueprint(order_routes.bp)
+                  +    
+                  +    # Register error handlers
+                  +    @app.errorhandler(500)
+                  +    def server_error(e):
+                  +        logging.error(f"Server error: {str(e)}")
+                  +        return {"error": "Internal server error"}, 500
+                      
+                      return app
+                  ```
+
+                  ---
+                  
+                  ## Grafana Dashboard Configuration
+
+                  **Type:** \`grafana\`  
+                  **Priority:** \`High\`
+
+                  ### Queries
+                  \`\`\`json
+                  [
+                    {
+                      "refId": "A",
+                      "datasource": "Prometheus",
+                      "expr": "sum(rate(http_server_duration_seconds_count{service_name=\\"flask-app\\"}[5m])) by (route)",
+                      "legendFormat": "route",
+                      "interval": "30s"
+                    },
+                    {
+                      "refId": "B",
+                      "datasource": "Prometheus",
+                      "expr": "histogram_quantile(0.95, sum(rate(http_server_duration_seconds_bucket{service_name=\\"flask-app\\"}[5m])) by (route, le))",
+                      "legendFormat": "p95 route",
+                      "interval": "30s"
+                    },
+                    {
+                      "refId": "C",
+                      "datasource": "Prometheus",
+                      "expr": "sum(rate(http_server_duration_seconds_count{service_name=\\"flask-app\\", status_code=~\\"5..\\"}[5m])) by (route) / sum(rate(http_server_duration_seconds_count{service_name=\\"flask-app\\"}[5m])) by (route)",
+                      "legendFormat": "Error % route",
+                      "interval": "30s"
+                    }
+                  ]
+                  \`\`\`
+
+                  ### Panels
+                  \`\`\`json
+                  [
+                    {
+                      "title": "Request Rate by Endpoint",
+                      "type": "timeseries",
+                      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+                      "targets": ["A"]
+                    },
+                    {
+                      "title": "p95 Latency by Endpoint",
+                      "type": "timeseries",
+                      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+                      "targets": ["B"]
+                    },
+                    {
+                      "title": "Error Rate by Endpoint",
+                      "type": "timeseries",
+                      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+                      "targets": ["C"]
+                    }
+                  ]
+                  \`\`\`
+
+                  ### Alerts
+                  \`\`\`json
+                  [
+                    {
+                      "name": "High Error Rate",
+                      "expr": "sum(rate(http_server_duration_seconds_count{service_name=\\"flask-app\\", status_code=~\\"5..\\"}[5m])) / sum(rate(http_server_duration_seconds_count{service_name=\\"flask-app\\"}[5m])) > 0.05",
+                      "for": "5m",
+                      "severity": "warning"
+                    },
+                    {
+                      "name": "High Latency",
+                      "expr": "histogram_quantile(0.95, sum(rate(http_server_duration_seconds_bucket{service_name=\\"flask-app\\"}[5m])) by (le)) > 1",
+                      "for": "5m",
+                      "severity": "warning"
+                    }
+                  ]
+                  \`\`\`
+                  
+                  🤖 *Generated by Pulse-Check Observability Analyzer*
+                  
               });
               console.log('PR comment posted successfully');
             } catch (error) {
