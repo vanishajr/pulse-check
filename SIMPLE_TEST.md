@@ -9,7 +9,7 @@ When you modify this file and create a PR, you'll see:
 - Monitoring environment spin up
 - Performance tests execute
 - Detailed logs in GitHub Actions
-- PR comment with analysis results and smtg
+- PR comment with analysis results 
 
 ## Test Counter: 1
 
